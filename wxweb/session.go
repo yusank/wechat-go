@@ -127,6 +127,45 @@ func CreateSession(common *Common, handlerRegister *HandlerRegister, qrmode int)
 	return session, nil
 }
 
+func CreateWebSessionWithPath(common *Common, handlerRegister *HandlerRegister, qrcode_path string) (*Session, error) {
+	if common == nil {
+		common = DefaultCommon
+	}
+
+	wxWebXcg := &XmlConfig{}
+
+	// get qrcode
+	uuid, err := JsLogin(common)
+	if err != nil {
+		return nil, err
+	}
+	logs.Info(uuid)
+	session := &Session{
+		WxWebCommon: common,
+		WxWebXcg:    wxWebXcg,
+		QrcodeUUID:  uuid,
+		CreateTime:  time.Now().Unix(),
+	}
+
+	if handlerRegister != nil {
+		session.HandlerRegister = handlerRegister
+	} else {
+		session.HandlerRegister = CreateHandlerRegister()
+	}
+
+	qrcb, err := QrCode(common, uuid)
+	if err != nil {
+		return nil, err
+	}
+	ls := rrstorage.CreateLocalDiskStorage(qrcode_path)
+	if err := ls.Save(qrcb, uuid+".jpg"); err != nil {
+		return nil, err
+	}
+	session.QrcodePath = uuid + ".jpg"
+	logs.Info("QrcodePath: %s", session.QrcodePath)
+	return session, nil
+}
+
 func (s *Session) analizeVersion(uri string) {
 	u, _ := url.Parse(uri)
 
@@ -239,7 +278,7 @@ func (s *Session) serve() error {
 		case m := <-msg:
 			go s.consumer(m)
 		case err := <-errChan:
-			// TODO maybe not all consumed messages have not return yet
+			// TODO maybe not all consumed messages ended
 			return err
 		}
 	}
@@ -249,24 +288,24 @@ func (s *Session) producer(msg chan []byte, errChan chan error) {
 loop1:
 	for {
 		ret, sel, err := SyncCheck(s.WxWebCommon, s.WxWebXcg, s.Cookies, s.WxWebCommon.SyncSrv, s.SynKeyList)
-		logs.Info(s.WxWebCommon.SyncSrv, ret, sel)
+		logs.Info(s.WxWebCommon.SyncSrv, ret, sel) //检查状态返回的值
 		if err != nil {
 			logs.Error(err)
 			continue
 		}
-		if ret == 0 {
+		if ret == 0 { //0 正常
 			// check success
-			if sel == 2 {
+			if sel == 2 { //2 新的消息
 				// new message
 				err := WebWxSync(s.WxWebCommon, s.WxWebXcg, s.Cookies, msg, s.SynKeyList)
 				if err != nil {
 					logs.Error(err)
 				}
-			} else if sel != 0 && sel != 7 {
+			} else if sel != 0 && sel != 7 && sel != 4 { //0 正常 7 进入/离开聊天界面 4 点击保存群聊到通讯录或者改群聊名字
 				errChan <- fmt.Errorf("session down, sel %d", sel)
 				break loop1
 			}
-		} else if ret == 1101 {
+		} else if ret == 1101 { //1100 失败/登出微信
 			errChan <- nil
 			break loop1
 		} else if ret == 1205 {

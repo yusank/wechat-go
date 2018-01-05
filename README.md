@@ -134,6 +134,29 @@ dump
 ###### share
 资源(纸牌屋)自动分发示例
 
+###### config
+配置管理插件
+设置配置, 在聊天窗口输入
+```
+set config key value
+```
+查看配置，在聊天窗口输入
+```
+get config key
+```
+在代码中使用配置
+```go
+import "github.com/songtianyi/wechat-go/kv"
+func demo() {
+	kv.KVStorageInstance.Set("key", "value")
+	v := kv.KVStorageInstance.Get("key")
+	if v == nil {
+		return
+	}
+	// v.(string) etc.
+}
+```
+
 ## 制作自己的插件
 自定义插件的两个原则
 * 一个插件只完成一个功能，不在一个插件里加入多个handler
@@ -210,4 +233,7 @@ func demo(session *wxweb.Session, msg *wxweb.ReceivedMessage) {
 }
 ```
 ## 展示
-![example](http://p1.bpimg.com/567571/374325070b2a9042.jpg)
+<img src="http://p1.bpimg.com/567571/374325070b2a9042.jpg" width="480" height="480"/>
+
+## 微信交流群
+<img src="http://owm6k6w0y.bkt.clouddn.com/17-9-21/70665214.jpg" width="480" height="480"/>
